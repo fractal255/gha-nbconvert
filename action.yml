@@ -1,0 +1,20 @@
+name: "gha-nbconvert"
+author: "fractal255"
+description: |
+  On every push, detect changed *.ipynb files, convert them to *.py under artifacts/gha-nbconvert.
+branding:
+  icon: book-open
+  color: blue
+inputs:
+  output-dir:
+    description: "Relative path under the repository root where generated .py files will be written. Default: artifacts/gha-nbconvert."
+    required: false
+    default: "artifacts/gha-nbconvert"
+runs:
+  using: docker
+  image: Dockerfile.dockerfile
+  env:
+    # Map action input to environment variable for the entrypoint
+    INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
+permissions:
+  contents: write

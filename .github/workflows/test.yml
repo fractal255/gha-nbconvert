@@ -1,0 +1,44 @@
+name: action-tests
+on:
+  pull_request:
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+# Cancel in-progress jobs on the same branch
+concurrency:
+  group: gha-nbconvert-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: |
+          pip install --no-cache-dir nbconvert==7.16.6 pytest==8.4.1
+      - name: Run executor tests
+        run: pytest -q
+      - name: Run docker-build test
+        run: docker build -f ./Dockerfile.dockerfile -t gha-nbconvert:test .
+      - name: Create fake GITHUB_EVENT_PATH
+        run: |
+          sha=$(git rev-parse HEAD)
+          printf '{"before":"%s","after":"%s"}' "$sha" "$sha" > event.json
+      - name: Run execution test via docker image
+        run: |
+          mkdir -p artifacts/gha-nbconvert
+          docker run --rm \
+            -e INPUT_OUTPUT_DIR=artifacts/gha-nbconvert \
+            -e GITHUB_WORKSPACE=/github/workspace \
+            -e GITHUB_EVENT_PATH=/github/workspace/event.json \
+            -e GITHUB_REF=refs/heads/main \
+            -v "$PWD":/github/workspace \
+            gha-nbconvert:test
