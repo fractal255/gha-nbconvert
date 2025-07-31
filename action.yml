@@ -1,7 +1,7 @@
 name: "gha-nbconvert"
 author: "fractal255"
 description: |
-  On every push, detect changed *.ipynb files, convert them to *.py under artifacts/gha-nbconvert.
+  On every pull request, detect changed *.ipynb files, convert them to *.py under artifacts/gha-nbconvert.
 branding:
   icon: book-open
   color: blue

@@ -82,6 +82,21 @@ def _mark_repo_safe(*, repo_root: Path) -> None:
     )
 
 
+def _shas_from_event(event: dict, *, event_name: str) -> tuple[str, str]:
+    """Return (before_sha, after_sha) for push or pull_request."""
+    if event_name == "pull_request":
+        pr = event.get("pull_request", {})
+        return (
+            pr.get("base", {}).get("sha", ZERO_SHA),
+            pr.get("head", {}).get("sha", ZERO_SHA),
+        )
+    # fall-back: push / workflow_dispatch
+    return (
+        event.get("before", ZERO_SHA),
+        event.get("after", ZERO_SHA),
+    )
+
+
 def _git_object_exists(*, sha: str, repo_root: Path) -> bool:
     """Return True iff *sha* exists in the repository object database."""
     if not isinstance(sha, str) or not isinstance(repo_root, Path):
@@ -180,10 +195,20 @@ def main() -> None:  # noqa: C901 – main entrypoint
     with Path(event_path).open(encoding="utf-8") as filepath:
         event = json.load(filepath)
 
-    before_sha: str = event.get("before", ZERO_SHA)
-    after_sha: str = event.get("after", ZERO_SHA)
-    ref: str = os.environ.get("GITHUB_REF", "")  # e.g. refs/heads/main
-    branch: Optional[str] = _get_branch_from_ref(ref)
+    event_name = os.environ.get("GITHUB_EVENT_NAME", "")
+    before_sha, after_sha = _shas_from_event(event, event_name=event_name)
+
+    if event_name != "pull_request":
+        print(f"Event '{event_name}' not supported; skipping.")
+        return
+
+    # Skip because write permission is not available in fork PR
+    pr_repo = event["pull_request"]["head"]["repo"]["full_name"]
+    base_repo = event["repository"]["full_name"]
+    if pr_repo != base_repo:
+        print("Pull request originates from a fork; skipping conversion.")
+        return
+    branch = os.environ.get("GITHUB_HEAD_REF") or event["pull_request"]["head"]["ref"]
     if not branch:
         print(f"Ref {ref} is not a branch ref; skipping conversion.")
         return

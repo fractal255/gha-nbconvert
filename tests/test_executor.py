@@ -59,3 +59,15 @@ def test_diff_first_push(fake_repo: Path) -> None:
     )
     # This is the initial push, so there should be no differences.
     assert paths == []
+
+
+def test_shas_from_pull_request() -> None:
+    evt = {
+        "pull_request": {
+            "base": {"sha": "a"*40},
+            "head": {"sha": "b"*40},
+        }
+    }
+    before, after = exctr._shas_from_event(evt, event_name="pull_request")
+    assert before == "a"*40
+    assert after == "b"*40
