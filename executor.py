@@ -97,6 +97,21 @@ def _shas_from_event(event: dict, *, event_name: str) -> tuple[str, str]:
     )
 
 
+def _is_fork_pr(event: dict) -> bool:
+    """If head.repo does not exist, it is recognized as same-repo."""
+    base_repo = event.get("repository", {}).get("full_name")
+    head_repo = (
+        event.get("pull_request", {})
+        .get("head", {})
+        .get("repo", {})
+        .get("full_name")
+    )
+    # Fallback if head_repo cannot be obtained
+    if not base_repo:
+        return False
+    return head_repo is not None and head_repo != base_repo
+
+
 def _git_object_exists(*, sha: str, repo_root: Path) -> bool:
     """Return True iff *sha* exists in the repository object database."""
     if not isinstance(sha, str) or not isinstance(repo_root, Path):
@@ -203,14 +218,15 @@ def main() -> None:  # noqa: C901 – main entrypoint
         return
 
     # Skip because write permission is not available in fork PR
-    pr_repo = event["pull_request"]["head"]["repo"]["full_name"]
-    base_repo = event["repository"]["full_name"]
-    if pr_repo != base_repo:
+    if _is_fork_pr(event):
         print("Pull request originates from a fork; skipping conversion.")
         return
-    branch = os.environ.get("GITHUB_HEAD_REF") or event["pull_request"]["head"]["ref"]
+    branch = (
+        os.environ.get("GITHUB_HEAD_REF")
+        or event.get("pull_request", {}).get("head", {}).get("ref", "")
+    )
     if not branch:
-        print(f"Ref {ref} is not a branch ref; skipping conversion.")
+        print("Branch name could not be determined; skipping conversion.")
         return
 
     # Determine output directory; default to artifacts/gha-nbconvert or use INPUT_OUTPUT_DIR
