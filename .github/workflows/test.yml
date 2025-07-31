@@ -31,7 +31,7 @@ jobs:
       - name: Create fake GITHUB_EVENT_PATH
         run: |
           sha=$(git rev-parse HEAD)
-          printf '{"before":"%s","after":"%s"}' "$sha" "$sha" > event.json
+          printf '{"pull_request":{"base":{"sha":"%s"},"head":{"sha":"%s"}}, "repository":{"full_name":"dummy/dummy"}}' "$sha" "$sha" > event.json
       - name: Run execution test via docker image
         run: |
           mkdir -p artifacts/gha-nbconvert
@@ -39,6 +39,7 @@ jobs:
             -e INPUT_OUTPUT_DIR=artifacts/gha-nbconvert \
             -e GITHUB_WORKSPACE=/github/workspace \
             -e GITHUB_EVENT_PATH=/github/workspace/event.json \
-            -e GITHUB_REF=refs/heads/main \
+            -e GITHUB_EVENT_NAME=pull_request \
+            -e GITHUB_HEAD_REF=main \
             -v "$PWD":/github/workspace \
             gha-nbconvert:test

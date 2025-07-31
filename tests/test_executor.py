@@ -59,3 +59,34 @@ def test_diff_first_push(fake_repo: Path) -> None:
     )
     # This is the initial push, so there should be no differences.
     assert paths == []
+
+
+def test_shas_from_pull_request() -> None:
+    evt = {
+        "pull_request": {
+            "base": {"sha": "a"*40},
+            "head": {"sha": "b"*40},
+        }
+    }
+    before, after = exctr._shas_from_event(evt, event_name="pull_request")
+    assert before == "a"*40
+    assert after == "b"*40
+
+
+def test_is_fork_pr_missing_repo() -> None:
+    ev = {
+        "pull_request": {"head": {"sha": "b"*40}, "base": {"sha": "a"*40}},
+        "repository": {"full_name": "dummy/dummy"},
+    }
+    assert exctr._is_fork_pr(ev) is False
+
+
+def test_is_fork_pr_true() -> None:
+    ev = {
+        "pull_request": {
+            "head": {"repo": {"full_name": "someone/fork"}, "sha": "b"*40},
+            "base": {"sha": "a"*40},
+        },
+        "repository": {"full_name": "dummy/dummy"},
+    }
+    assert exctr._is_fork_pr(ev) is True
