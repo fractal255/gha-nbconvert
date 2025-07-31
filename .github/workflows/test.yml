@@ -1,8 +1,7 @@
 name: action-tests
 on:
   pull_request:
-  push:
-    branches: ["**"]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
