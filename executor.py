@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Final, Sequence
+from typing import Final, Sequence, Optional
 
 import nbformat  # type: ignore
 from nbconvert import PythonExporter  # type: ignore
@@ -123,19 +123,46 @@ def _git_object_exists(*, sha: str, repo_root: Path) -> bool:
         return False
 
 
-def _diff_changed_notebooks(
-    *, repo_root: Path, before: str, after: str
-) -> list[Path]:
+def _ensure_commit_available(sha: str, repo_root: Path) -> None:
     """
-    Return a list of *.ipynb files modified between *before* and *after*.
+    Guarantee that *sha* exists locally.  
+    If the object is missing (typical on pull_request-only fetches), fetch it with
+    `git fetch --depth=1 origin <sha>`.  All errors are swallowed so that the
+    caller can decide to fall back or early-return.
+    """
+    if sha == ZERO_SHA or _git_object_exists(sha=sha, repo_root=repo_root):
+        return
+    try:
+        _run_git(args=["fetch", "--depth=1", "origin", sha], cwd=repo_root)
+    except subprocess.CalledProcessError:
+        # still missing – let the caller handle the neutral exit path
+        pass
+
+
+def _diff_changed_notebooks(*, repo_root: Path, before: str, after: str) -> list[Path]:
+    """
+    Return a list of *.ipynb files that were added / modified / renamed /
+    copied / had their type changed between *before* and *after*.
     """
     if not all(isinstance(s, str) for s in (before, after)):
         raise ValueError("before and after must be str")
 
+    # Ensure both commits are present in the local object database
+    _ensure_commit_available(before, repo_root)
+    _ensure_commit_available(after, repo_root)
+
     if before == ZERO_SHA or not _git_object_exists(sha=before, repo_root=repo_root):
+        # First push of the branch – fall back to diff-tree
         diff_args = ["diff-tree", "--no-commit-id", "--name-only", "-r", after]
     else:
-        diff_args = ["diff", "--name-only", before, after]
+        # Normal path – include Added, Copied, Modified, Renamed, Type-changed
+        diff_args = [
+            "diff",
+            "--name-only",
+            "--diff-filter=ACMRT",
+            before,
+            after,
+        ]
 
     diff_output: str = _run_git(args=diff_args, cwd=repo_root)
     paths = [

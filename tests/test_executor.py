@@ -90,3 +90,27 @@ def test_is_fork_pr_true() -> None:
         "repository": {"full_name": "dummy/dummy"},
     }
     assert exctr._is_fork_pr(ev) is True
+
+
+def test_diff_added_notebook(fake_repo: Path) -> None:
+    """
+    A single new *.ipynb committed on a branch must be detected even when the
+    base commit is not yet fetched (simulates `actions/checkout --depth 1`).
+    """
+    # current HEAD is the base (`before`)
+    before: str = exctr._run_git(args=["rev-parse", "HEAD"], cwd=fake_repo)
+
+    # create and commit a brand-new notebook
+    new_nb: Path = fake_repo / "nb" / "new.ipynb"
+    new_nb.write_text(
+        json.dumps({"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5})
+    )
+    subprocess.run(["git", "add", str(new_nb)], cwd=fake_repo, check=True)
+    subprocess.run(["git", "commit", "-m", "add new notebook"], cwd=fake_repo, check=True)
+
+    after: str = exctr._run_git(args=["rev-parse", "HEAD"], cwd=fake_repo)
+
+    changed: list[Path] = exctr._diff_changed_notebooks(
+        repo_root=fake_repo, before=before, after=after
+    )
+    assert changed == [new_nb]
