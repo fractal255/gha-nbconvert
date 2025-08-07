@@ -90,3 +90,52 @@ def test_is_fork_pr_true() -> None:
         "repository": {"full_name": "dummy/dummy"},
     }
     assert exctr._is_fork_pr(ev) is True
+
+def _create_commit(repo: Path, file: Path, msg: str) -> str:
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_text("{}", encoding="utf-8")
+    subprocess.run(["git", "add", str(file)], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-m", msg], cwd=repo, check=True)
+    return exctr._run_git(args=["rev-parse", "HEAD"], cwd=repo)
+
+def test_diff_two_commits(fake_repo: Path) -> None:
+    # 1st: add notebook
+    nb = fake_repo / "nb" / "added.ipynb"
+    base_sha = _create_commit(fake_repo, nb, "add notebook")
+    # 2nd: unrelated change
+    readme = fake_repo / "README.md"
+    after_sha = _create_commit(fake_repo, readme, "touch readme")
+    changed = exctr._diff_changed_notebooks(
+        repo_root=fake_repo, before=base_sha, after=after_sha
+    )
+    assert nb in changed
+
+def test_diff_multi_commits(fake_repo: Path) -> None:
+    nb = fake_repo / "nb" / "added.ipynb"
+    # Create a commit containing only README in base (main).
+    readme = fake_repo / "README.md"
+    readme.write_text("base")
+    subprocess.run(["git", "add", "."], cwd=fake_repo, check=True)
+    subprocess.run(["git", "commit", "-m", "base commit"], cwd=fake_repo, check=True)
+    base_sha = exctr._run_git(args=["rev-parse", "HEAD"], cwd=fake_repo)
+    # PR: notebook added → README revised
+    nb.write_text("{}")
+    subprocess.run(["git", "add", str(nb)], cwd=fake_repo, check=True)
+    subprocess.run(["git", "commit", "-m", "add notebook"], cwd=fake_repo, check=True)
+    readme.write_text("edit")
+    subprocess.run(["git", "add", str(readme)], cwd=fake_repo, check=True)
+    subprocess.run(["git", "commit", "-m", "edit readme"], cwd=fake_repo, check=True)
+    head_sha = exctr._run_git(args=["rev-parse", "HEAD"], cwd=fake_repo)
+
+    changed = exctr._diff_changed_notebooks(
+        repo_root=fake_repo, before=base_sha, after=head_sha
+    )
+    assert nb in changed
+
+def test_diff_before_missing(fake_repo: Path) -> None:
+    nb = fake_repo / "nb" / "new.ipynb"
+    after_sha = _create_commit(fake_repo, nb, "add notebook again")
+    changed = exctr._diff_changed_notebooks(
+        repo_root=fake_repo, before="a"*40, after=after_sha
+    )
+    assert nb in changed
