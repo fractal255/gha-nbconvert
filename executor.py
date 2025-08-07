@@ -132,17 +132,28 @@ def _diff_changed_notebooks(
     if not all(isinstance(s, str) for s in (before, after)):
         raise ValueError("before and after must be str")
 
-    if before == ZERO_SHA or not _git_object_exists(sha=before, repo_root=repo_root):
-        diff_args = ["diff-tree", "--no-commit-id", "--name-only", "-r", after]
+    changed: set[str] = set()
+    if _git_object_exists(sha=before, repo_root=repo_root):
+        # A) difference between the whole range
+        out = _run_git(args=["diff", "--name-only", f"{before}...{after}"], cwd=repo_root)
+        changed.update(out.splitlines())
+        # B) Notebooks added/modified before (PR 1st push compatible)
+        out = _run_git(
+            args=["diff-tree", "--root", "-m", "--no-commit-id", "--name-only", "-r", before],
+            cwd=repo_root,
+        )
+        changed.update(out.splitlines())
     else:
-        diff_args = ["diff", "--name-only", before, after]
+        # Only view shallow clones / ZERO_SHA
+        out = _run_git(
+            args=["diff-tree", "--root", "-m", "--no-commit-id", "--name-only", "-r", after],
+            cwd=repo_root,
+        )
+        changed.update(out.splitlines())
 
-    diff_output: str = _run_git(args=diff_args, cwd=repo_root)
     paths = [
-        repo_root / p
-        for p in diff_output.splitlines()
-        if p.endswith(".ipynb") and p  # notebook file name 
-        and (repo_root / p).is_file()  # keep only files that exist in the after state
+        repo_root / p for p in sorted(changed)
+        if p.endswith(".ipynb") and p and (repo_root / p).is_file()  # keep only files that exist in the after state
     ]
     return paths
 
