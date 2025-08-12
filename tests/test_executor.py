@@ -139,3 +139,16 @@ def test_diff_before_missing(fake_repo: Path) -> None:
         repo_root=fake_repo, before="a"*40, after=after_sha
     )
     assert nb in changed
+
+def test_diff_handles_nonascii_and_angle_brackets(fake_repo: Path) -> None:
+    """Ensure we detect paths with non-ASCII and < > characters (no quoted output)."""
+    subdir = fake_repo / "src" / "migration"
+    nb = subdir / "日本語_配列_ARRAY<STRING>変換.ipynb"
+    nb.parent.mkdir(parents=True, exist_ok=True)
+    nb.write_text("{}", encoding="utf-8")
+    subprocess.run(["git", "add", str(nb)], cwd=fake_repo, check=True)
+    subprocess.run(["git", "commit", "-m", "add tricky filename"], cwd=fake_repo, check=True)
+    before = exctr._run_git(args=["rev-parse", "HEAD~1"], cwd=fake_repo)
+    after = exctr._run_git(args=["rev-parse", "HEAD"], cwd=fake_repo)
+    changed = exctr._diff_changed_notebooks(repo_root=fake_repo, before=before, after=after)
+    assert nb in changed
