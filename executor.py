@@ -122,6 +122,32 @@ def _git_object_exists(*, sha: str, repo_root: Path) -> bool:
         return False
 
 
+def _git_list_paths(*, args: Sequence[str], cwd: Path) -> list[str]:
+    """Run `git … --name-only -z` with quotePath disabled and return decoded paths.
+    This reliably handles non-ASCII and special characters in filenames.
+    """
+    if not isinstance(args, Sequence) or not all(isinstance(a, str) for a in args):
+        raise ValueError("args must be sequence[str]")
+    if "--name-only" not in args:
+        raise ValueError("`--name-only` is required for _git_list_paths")
+    try:
+        result = subprocess.run(
+            ["git", "-c", "core.quotepath=false", *args, "-z"],
+            cwd=cwd,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        err_msg = (
+            f"git {' '.join(args)} failed. stdout:\n{exc.stdout}\n"
+            f"stderr:\n{exc.stderr}"
+        )
+        raise subprocess.CalledProcessError(exc.returncode, exc.cmd, output=exc.stdout, stderr=err_msg) from exc
+    # Split by NUL and drop empties
+    return [p for p in result.stdout.split("\0") if p]
+
+
 def _diff_changed_notebooks(
     *, repo_root: Path, before: str, after: str
 ) -> list[Path]:
@@ -134,23 +160,23 @@ def _diff_changed_notebooks(
     changed: set[str] = set()
     if _git_object_exists(sha=before, repo_root=repo_root):
         # A) difference between the whole range
-        out = _run_git(args=["diff", "--name-only", f"{before}...{after}"], cwd=repo_root)
-        changed.update(out.splitlines())
+        out = _git_list_paths(args=["diff", "--name-only", f"{before}...{after}"], cwd=repo_root)
+        changed.update(out)
         print(f"Detected changes (A): {changed}")
         # B) Notebooks added/modified before (PR 1st push compatible)
-        out = _run_git(
+        out = _git_list_paths(
             args=["diff-tree", "--root", "-m", "--no-commit-id", "--name-only", "-r", before],
             cwd=repo_root,
         )
-        changed.update(out.splitlines())
+        changed.update(out)
         print(f"Detected changes (B): {changed}")
     else:
         # C) Only view shallow clones / ZERO_SHA
-        out = _run_git(
+        out = _git_list_paths(
             args=["diff-tree", "--root", "-m", "--no-commit-id", "--name-only", "-r", after],
             cwd=repo_root,
         )
-        changed.update(out.splitlines())
+        changed.update(out)
         print(f"Detected changes (C): {changed}")
 
     paths: list[Path] = [
