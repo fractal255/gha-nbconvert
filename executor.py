@@ -36,7 +36,6 @@ def _ensure_writable_home() -> None:
             if os.access(cand, os.W_OK):
                 os.environ["HOME"] = str(cand)
                 return
-
     # Fallback: create a temporary writable home
     tmp_home = Path(tempfile.mkdtemp(prefix="nbconvert_home_"))
     os.environ["HOME"] = str(tmp_home)
@@ -137,24 +136,28 @@ def _diff_changed_notebooks(
         # A) difference between the whole range
         out = _run_git(args=["diff", "--name-only", f"{before}...{after}"], cwd=repo_root)
         changed.update(out.splitlines())
+        print(f"Detected changes (A): {changed}")
         # B) Notebooks added/modified before (PR 1st push compatible)
         out = _run_git(
             args=["diff-tree", "--root", "-m", "--no-commit-id", "--name-only", "-r", before],
             cwd=repo_root,
         )
         changed.update(out.splitlines())
+        print(f"Detected changes (B): {changed}")
     else:
-        # Only view shallow clones / ZERO_SHA
+        # C) Only view shallow clones / ZERO_SHA
         out = _run_git(
             args=["diff-tree", "--root", "-m", "--no-commit-id", "--name-only", "-r", after],
             cwd=repo_root,
         )
         changed.update(out.splitlines())
+        print(f"Detected changes (C): {changed}")
 
-    paths = [
+    paths: list[Path] = [
         repo_root / p for p in sorted(changed)
         if p.endswith(".ipynb") and p and (repo_root / p).is_file()  # keep only files that exist in the after state
     ]
+    print(f"All detected changes: {paths}")
     return paths
 
 
