@@ -152,3 +152,25 @@ def test_diff_handles_nonascii_and_angle_brackets(fake_repo: Path) -> None:
     after = exctr._run_git(args=["rev-parse", "HEAD"], cwd=fake_repo)
     changed = exctr._diff_changed_notebooks(repo_root=fake_repo, before=before, after=after)
     assert nb in changed
+
+def test_commit_and_push_is_idempotent(fake_repo: Path, tmp_path: Path) -> None:
+    """Second invocation should be a no-op (no new commit, no failure)."""
+    # Prepare a bare remote and set as origin so that push works.
+    remote = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", str(remote)], check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(remote)], cwd=fake_repo, check=True)
+    # Establish upstream for the current branch.
+    branch = exctr._run_git(args=["rev-parse", "--abbrev-ref", "HEAD"], cwd=fake_repo)
+    subprocess.run(["git", "push", "-u", "origin", branch], cwd=fake_repo, check=True)
+
+    # Convert a notebook and commit/push via the action helper.
+    nb = fake_repo / "nb" / "test.ipynb"
+    dst = exctr._notebook_to_py_path(notebook_path=nb, repo_root=fake_repo, output_dir="artifacts/gha-nbconvert")
+    exctr._convert_notebook(notebook_path=nb, destination_path=dst)
+    exctr._commit_and_push(repo_root=fake_repo, files=[dst], branch=branch)
+    head1 = exctr._run_git(args=["rev-parse", "HEAD"], cwd=fake_repo)
+
+    # Invoke again without changing inputs; should short-circuit and keep HEAD.
+    exctr._commit_and_push(repo_root=fake_repo, files=[dst], branch=branch)
+    head2 = exctr._run_git(args=["rev-parse", "HEAD"], cwd=fake_repo)
+    assert head1 == head2

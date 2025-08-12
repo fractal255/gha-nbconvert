@@ -216,6 +216,24 @@ def _convert_notebook(*, notebook_path: Path, destination_path: Path) -> None:
     destination_path.write_text(GEN_HEADER + script, encoding="utf-8")
 
 
+def _has_staged_changes(*, repo_root: Path, files: Sequence[Path]) -> bool:
+    """
+    Return True iff there are staged changes for the given files.
+    It inspects the index (not the working tree) after 'git add'.
+    """
+    if not files:
+        return False
+    # Use '--' to terminate pathspec and handle special characters safely.
+    proc = subprocess.run(
+        ["git", "diff", "--cached", "--name-only", "--", *map(str, files)],
+        cwd=repo_root,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    return bool(proc.stdout.strip())
+
+
 def _commit_and_push(*, repo_root: Path, files: Sequence[Path], branch: str) -> None:
     """Commit and push generated files."""
     if not files:
@@ -225,11 +243,12 @@ def _commit_and_push(*, repo_root: Path, files: Sequence[Path], branch: str) -> 
         args=["config", "user.email", "github-actions[bot]@users.noreply.github.com"],
         cwd=repo_root,
     )
-    _run_git(args=["add", *map(str, files)], cwd=repo_root)
-    _run_git(
-        args=["commit", "-m", "chore(nbconvert): auto-generate *.py from *.ipynb"],
-        cwd=repo_root,
-    )
+    _run_git(args=["add", "--", *map(str, files)], cwd=repo_root)
+    # Early return if there is nothing to commit (idempotent on repeated runs).
+    if not _has_staged_changes(repo_root=repo_root, files=files):
+        print("No changes to commit – skipping commit/push.")
+        return
+    _run_git(args=["commit", "-m", "chore(nbconvert): auto-generate *.py from *.ipynb"], cwd=repo_root)
     _run_git(args=["push", "origin", branch], cwd=repo_root)
 
 
