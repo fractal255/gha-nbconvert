@@ -215,13 +215,6 @@ def _diff_changed_notebooks(
     return paths
 
 
-def _get_branch_from_ref(ref: str) -> Optional[str]:
-    """Extract the branch name from a Git ref. Return None for non-head refs."""
-    if ref.startswith("refs/heads/"):
-        return ref.split("/", maxsplit=2)[-1]
-    return None
-
-
 def _notebook_to_py_path(
     *, notebook_path: Path, repo_root: Path, output_dir: Path
 ) -> Path:
