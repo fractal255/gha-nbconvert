@@ -174,3 +174,22 @@ def test_commit_and_push_is_idempotent(fake_repo: Path, tmp_path: Path) -> None:
     exctr._commit_and_push(repo_root=fake_repo, files=[dst], branch=branch)
     head2 = exctr._run_git(args=["rev-parse", "HEAD"], cwd=fake_repo)
     assert head1 == head2
+
+
+def test_origin_matches_event_repo_ok(tmp_path: Path) -> None:
+    # init a repo and set origin to match event.repository.full_name
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test Bot"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "remote", "add", "origin", "https://github.com/owner/repo.git"], cwd=tmp_path, check=True)
+    event = {"repository": {"full_name": "owner/repo"}}
+    assert exctr._origin_matches_event_repo(repo_root=tmp_path, event=event) is True
+
+
+def test_origin_matches_event_repo_mismatch(tmp_path: Path) -> None:
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test Bot"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "remote", "add", "origin", "git@github.com:someone/else.git"], cwd=tmp_path, check=True)
+    event = {"repository": {"full_name": "owner/repo"}}
+    assert exctr._origin_matches_event_repo(repo_root=tmp_path, event=event) is False

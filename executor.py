@@ -24,6 +24,34 @@ class PathTraversalError(ValueError):
     """Raised when a path would leave the repository root."""
 
 
+def _normalize_repo_url(url: str) -> str:
+    """Return a normalized github repo URL form for comparison."""
+    u = url.strip().lower()
+    # Drop trailing .git
+    if u.endswith(".git"):
+        u = u[:-4]
+    # Normalize ssh/https forms to https style
+    if u.startswith("git@github.com:"):
+        u = "https://github.com/" + u[len("git@github.com:"):]
+    return u
+
+
+def _origin_matches_event_repo(*, repo_root: Path, event: dict) -> bool:
+    """
+    Return True iff remote 'origin' points to the same repository as the event.
+    If event.repo is missing, be conservative and return False.
+    """
+    expected = (event.get("repository") or {}).get("full_name")
+    if not expected:
+        return False
+    expected_norm = f"https://github.com/{expected.lower()}"
+    try:
+        remote = _run_git(args=["remote", "get-url", "origin"], cwd=repo_root)
+    except subprocess.CalledProcessError:
+        return False
+    return _normalize_repo_url(remote) == expected_norm
+
+
 def _ensure_writable_home() -> None:
     """Set $HOME to a writable directory for git global config."""
     candidates = [Path("/home/nbconvert"), Path(os.environ.get("HOME", ""))]
@@ -187,13 +215,6 @@ def _diff_changed_notebooks(
     return paths
 
 
-def _get_branch_from_ref(ref: str) -> Optional[str]:
-    """Extract the branch name from a Git ref. Return None for non-head refs."""
-    if ref.startswith("refs/heads/"):
-        return ref.split("/", maxsplit=2)[-1]
-    return None
-
-
 def _notebook_to_py_path(
     *, notebook_path: Path, repo_root: Path, output_dir: Path
 ) -> Path:
@@ -286,6 +307,11 @@ def main() -> None:  # noqa: C901 – main entrypoint
     )
     if not branch:
         print("Branch name could not be determined; skipping conversion.")
+        return
+
+    # Guard unexpected remote rewrite (exfiltration via push)
+    if not _origin_matches_event_repo(repo_root=repo_root, event=event):
+        print("Remote 'origin' does not match event repository; skipping push.")
         return
 
     # Determine output directory; default to artifacts/gha-nbconvert or use INPUT_OUTPUT_DIR

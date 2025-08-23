@@ -16,5 +16,3 @@ runs:
   env:
     # Map action input to environment variable for the entrypoint
     INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
-permissions:
-  contents: write
