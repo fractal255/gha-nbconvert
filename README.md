@@ -13,7 +13,6 @@ readable Python scripts and commits them back to the same branch.**
 3. Each notebook is processed with `jupyter nbconvert --to python`,
    stripped of execution counts / metadata, and written to  
    `output_dir / <source notebook path>`.
-   (Example: `artifacts/gha-nbconvert/src/notebooks/changed-notebook-name.py`)
 4. The resulting files are committed and pushed back to the PR branch.
 
 
@@ -22,6 +21,8 @@ readable Python scripts and commits them back to the same branch.**
 | Name            | Type (Default)                     | Description                                           |
 |-----------------|------------------------------------|-------------------------------------------------------|
 | `output_dir`    | _string_ ( `artifacts/gha-nbconvert` ) | Destination folder for generated `.py` files.         |
+
+If the target notebook is `src/notebooks/changed-notebook-name.ipynb` and `output_dir` is `artifacts/gha-nbconvert`, the converted .py file will be output as `artifacts/gha-nbconvert/src/notebooks/changed-notebook-name.py`.
 
 
 ## Quick Start (Workflow Example)
@@ -46,7 +47,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.head_ref }}
-      - uses: fractal255/gha-nbconvert@v0.0.2
+      - uses: fractal255/gha-nbconvert@v0.0.4
         with:
           output-dir: "artifacts/gha-nbconvert"
 ```
