@@ -1,18 +1,13 @@
 # gha-nbconvert
 
-**Automatically converts only the Jupyter notebooks changed in Pull Request into
-readable Python scripts and commits them back to the same branch.**
+**Automatically converts only the Jupyter notebooks changed in Pull Request into readable Python scripts and commits them back to the same branch.**
 
 
 ## How it Works
 
-1. Triggered on **`pull_request`** events (`opened`, `synchronize`, `reopened`,
-   limited to `**/*.ipynb` changes).  
-2. `executor.py` diffs **`base.sha` … `head.sha`** and collects the notebooks
-   modified by the PR.  
-3. Each notebook is processed with `jupyter nbconvert --to python`,
-   stripped of execution counts / metadata, and written to  
-   `output_dir / <source notebook path>`.
+1. Triggered on **`pull_request`** events (`opened`, `synchronize`, `reopened`, limited to `**/*.ipynb` changes).  
+2. `executor.py` diffs **`base.sha` … `head.sha`** and collects the notebooks modified by the PR.  
+3. Each notebook is processed with `jupyter nbconvert --to python`, stripped of execution counts / metadata, and written to `output_dir / <source notebook path>`.
 4. The resulting files are committed and pushed back to the PR branch.
 
 
