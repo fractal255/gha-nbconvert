@@ -1,7 +1,7 @@
 name: "gha-nbconvert"
 author: "fractal255"
 description: |
-  On every pull request, detect changed Jupyter Notebooks (*.ipynb) files and convert them to *.py files under your specified directory.
+  On every pull request, detect changed Jupyter Notebooks (*.ipynb) and convert them to *.py files under your output dir.
 branding:
   icon: chevrons-right
   color: blue
